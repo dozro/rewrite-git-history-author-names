@@ -142,7 +142,7 @@ func main() {
 				fmt.Println("Error running git command:", err)
 			}
 		} else {
-			execCmd := fmt.Sprintf(`AUTHOR="$(git show -s --format=%%ae)" && if [ "$AUTHOR" = "%s" ]; then git commit --amend --no-edit -S; fi`, *newEmail)
+			execCmd := fmt.Sprintf(`AUTHOR="$(git show -s --format=%%ae)" && if [ "$AUTHOR" = "%s" ]; then git commit --date=original --amend --no-edit -S; fi`, *newEmail)
 			// Prepare rebase command
 			rebaseCmd := exec.Command("git", "rebase", "--root", "--exec", execCmd)
 			rebaseCmd.Stdout = os.Stdout
