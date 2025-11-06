@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -18,8 +19,6 @@ func main() {
 	newName := flag.String("newName", "", "New name")
 	newEmail := flag.String("newEmail", "", "New email")
 	signCommits := flag.Bool("signCommits", false, "Sign commits")
-	signAll := flag.Bool("signAll", false, "Sign all commits")
-	signSinceHash := flag.String("signSinceHash", "", "Sign since hash")
 	flag.Parse()
 
 	if *oldName == "" || *oldEmail == "" || *newName == "" || *newEmail == "" {
@@ -121,39 +120,77 @@ func main() {
 	importCmd.Wait()
 
 	if *signCommits {
-		cmd := exec.Command("git", "rev-list", "--max-parents=0", "HEAD")
-		rOutput, err := cmd.Output()
-		if err != nil {
-			fmt.Println("Error executing git command:", err)
-			return
-		}
-		oldestCommitHash := strings.TrimSpace(string(rOutput))
-		if *signSinceHash != "" {
-			fmt.Printf("your provided commit hash(%s) will override the found commit hash(%s)\n", *signSinceHash, oldestCommitHash)
-			oldestCommitHash = strings.TrimSpace(*signSinceHash)
-		}
-		fmt.Println("Oldest commit hash:", oldestCommitHash)
-		if *signAll {
-			fmt.Println("Signing all old commits since hash:", oldestCommitHash)
-			cmd := exec.Command("git", "rebase", "--exec", "'git commit --amend --no-edit -n -S'", oldestCommitHash)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				fmt.Println("Error running git command:", err)
-			}
-		} else {
-			execCmd := fmt.Sprintf(`AUTHOR="$(git show -s --format=%%ae)" && if [ "$AUTHOR" = "%s" ]; then git commit --date=original --amend --no-edit -S; fi`, *newEmail)
-			// Prepare rebase command
-			rebaseCmd := exec.Command("git", "rebase", "--root", "--exec", execCmd)
-			rebaseCmd.Stdout = os.Stdout
-			rebaseCmd.Stderr = os.Stderr
-			rebaseCmd.Stdin = os.Stdin
+		// You can change HEAD to another branch name if needed
+		revision := "HEAD"
 
-			if err := rebaseCmd.Run(); err != nil {
-				fmt.Println("Error running git rebase:", err)
+		// Get the commit list in topological order (oldest to newest)
+		commitsRaw, err := runGit("rev-list", "--reverse", revision)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to list commits: %v\n", err)
+			os.Exit(1)
+		}
+
+		commits := strings.Split(commitsRaw, "\n")
+		newCommitMap := make(map[string]string)
+		for i, commit := range commits {
+			fmt.Printf("Re-signing commit %d/%d: %s\n", i+1, len(commits), commit)
+
+			tree, _ := runGit("show", "-s", "--format=%T", commit)
+			parentsRaw, _ := runGit("show", "-s", "--format=%P", commit)
+			msg, _ := runGit("show", "-s", "--format=%B", commit)
+
+			an, _ := runGit("show", "-s", "--format=%an", commit)
+			ae, _ := runGit("show", "-s", "--format=%ae", commit)
+			ad, _ := runGit("show", "-s", "--format=%aI", commit)
+
+			cn, _ := runGit("show", "-s", "--format=%cn", commit)
+			ce, _ := runGit("show", "-s", "--format=%ce", commit)
+			cd, _ := runGit("show", "-s", "--format=%cI", commit)
+
+			parents := strings.Fields(parentsRaw)
+			var parentArgs []string
+			for _, p := range parents {
+				if newParent, ok := newCommitMap[p]; ok {
+					parentArgs = append(parentArgs, "-p", newParent)
+				} else {
+					parentArgs = append(parentArgs, "-p", p)
+				}
+			}
+
+			// Create the new signed commit using git commit-tree -S
+			cmd := exec.Command("git", append([]string{"commit-tree", "-S", tree}, parentArgs...)...)
+			cmd.Stdin = bytes.NewBufferString(msg)
+			cmd.Stderr = os.Stderr
+			cmd.Env = append(os.Environ(),
+				fmt.Sprintf("GIT_AUTHOR_NAME=%s", an),
+				fmt.Sprintf("GIT_AUTHOR_EMAIL=%s", ae),
+				fmt.Sprintf("GIT_AUTHOR_DATE=%s", ad),
+				fmt.Sprintf("GIT_COMMITTER_NAME=%s", cn),
+				fmt.Sprintf("GIT_COMMITTER_EMAIL=%s", ce),
+				fmt.Sprintf("GIT_COMMITTER_DATE=%s", cd),
+			)
+
+			out, err := cmd.Output()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error signing commit %s: %v\n", commit, err)
 				os.Exit(1)
 			}
+
+			newHash := strings.TrimSpace(string(out))
+			newCommitMap[commit] = newHash
 		}
+
+		// The last commit in the chain is the new HEAD
+		newHead := newCommitMap[commits[len(commits)-1]]
+
+		fmt.Printf("Resetting branch to new head %s\n", newHead)
+		if _, err := runGit("update-ref", "refs/heads/resigned", newHead); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to update ref: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("All commits have been re-signed and written to branch 'resigned'.")
+		fmt.Println("You can inspect it using:")
+		fmt.Println("  git log --show-signature resigned")
 	}
 
 	fmt.Println("All commits rewritten successfully!")
@@ -196,4 +233,11 @@ func rewriteSignoffs(msg, oldName, oldEmail, newName, newEmail string) string {
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func runGit(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	return strings.TrimSpace(string(out)), err
 }
