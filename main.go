@@ -17,6 +17,9 @@ func main() {
 	oldEmail := flag.String("oldEmail", "", "Old email")
 	newName := flag.String("newName", "", "New name")
 	newEmail := flag.String("newEmail", "", "New email")
+	signCommits := flag.Bool("signCommits", false, "Sign commits")
+	signAll := flag.Bool("signAll", false, "Sign all commits")
+	signSinceHash := flag.String("signSinceHash", "", "Sign since hash")
 	flag.Parse()
 
 	if *oldName == "" || *oldEmail == "" || *newName == "" || *newEmail == "" {
@@ -117,11 +120,48 @@ func main() {
 	exportCmd.Wait()
 	importCmd.Wait()
 
+	if *signCommits {
+		cmd := exec.Command("git", "rev-list", "--max-parents=0", "HEAD")
+		rOutput, err := cmd.Output()
+		if err != nil {
+			fmt.Println("Error executing git command:", err)
+			return
+		}
+		oldestCommitHash := strings.TrimSpace(string(rOutput))
+		if *signSinceHash != "" {
+			fmt.Printf("your provided commit hash(%s) will override the found commit hash(%s)\n", *signSinceHash, oldestCommitHash)
+			oldestCommitHash = strings.TrimSpace(*signSinceHash)
+		}
+		fmt.Println("Oldest commit hash:", oldestCommitHash)
+		if *signAll {
+			fmt.Println("Signing all old commits since hash:", oldestCommitHash)
+			cmd := exec.Command("git", "rebase", "--exec", "'git commit --amend --no-edit -n -S'", oldestCommitHash)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				fmt.Println("Error running git command:", err)
+			}
+		} else {
+			execCmd := fmt.Sprintf(`AUTHOR="$(git show -s --format=%%ae)" && if [ "$AUTHOR" = "%s" ]; then git commit --amend --no-edit -S; fi`, *newEmail)
+			// Prepare rebase command
+			rebaseCmd := exec.Command("git", "rebase", "--root", "--exec", execCmd)
+			rebaseCmd.Stdout = os.Stdout
+			rebaseCmd.Stderr = os.Stderr
+			rebaseCmd.Stdin = os.Stdin
+
+			if err := rebaseCmd.Run(); err != nil {
+				fmt.Println("Error running git rebase:", err)
+				os.Exit(1)
+			}
+		}
+	}
+
 	fmt.Println("All commits rewritten successfully!")
 	fmt.Println("Run cleanup and push:")
 	reflog := exec.Command("git", "reflog", "expire", "--expire=now", "--all")
 	reflog.Stdout = os.Stdout
 	reflog.Stderr = os.Stderr
+
 	if err := reflog.Run(); err != nil {
 		fmt.Println("Error running git reflog:", err)
 	}
