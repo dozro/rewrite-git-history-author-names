@@ -60,16 +60,53 @@ func main() {
 		reader := bufio.NewReader(exportOut)
 		writer := bufio.NewWriter(importIn)
 
+		inCommitMsg := false
+		msgBytesRemaining := 0
+
 		for {
 			line, err := reader.ReadString('\n')
 			if err != nil && err != io.EOF {
 				fmt.Println("Error reading fast-export stream:", err)
 				break
 			}
+
+			// Detect start of commit message block
+			if strings.HasPrefix(line, "data ") {
+				// "data <len>\n<message>"
+				var length int
+				fmt.Sscanf(line, "data %d", &length)
+				msgBytesRemaining = length
+				inCommitMsg = true
+			}
+
 			if strings.HasPrefix(line, "author ") || strings.HasPrefix(line, "committer ") {
 				line = rewriteAuthor(line, *oldEmail, *newName, *newEmail)
 			}
+
+			// If entering commit message block, rewrite its contents
+			if inCommitMsg && msgBytesRemaining > 0 {
+				// Read the full message body (may span multiple lines)
+				msg := make([]byte, msgBytesRemaining)
+				n, _ := io.ReadFull(reader, msg)
+				if n > 0 {
+					newMsg := rewriteSignoffs(string(msg), *oldName, *oldEmail, *newName, *newEmail)
+					msgBytesRemaining = len(newMsg)
+					// Rewrite the preceding "data " line with new length
+					_, err := writer.WriteString(fmt.Sprintf("data %d\n", msgBytesRemaining))
+					if err != nil {
+						log.Println("Error writing fast-export stream:", err)
+					}
+					_, err = writer.WriteString(newMsg)
+					if err != nil {
+						log.Println("Error writing fast-export stream:", err)
+					}
+				}
+				inCommitMsg = false
+				msgBytesRemaining = 0
+				continue
+			}
 			writer.WriteString(line)
+
 			if err == io.EOF {
 				break
 			}
@@ -107,4 +144,16 @@ func rewriteAuthor(line, oldEmail, newName, newEmail string) string {
 	// parts[1] contains the rest (timestamp/timezone)
 	rest := parts[1]
 	return fmt.Sprintf("%s %s <%s>%s", strings.Split(line, " ")[0], newName, newEmail, rest)
+}
+
+// rewriteSignoffs replaces Signed-off-by lines in commit messages
+func rewriteSignoffs(msg, oldName, oldEmail, newName, newEmail string) string {
+	lines := strings.Split(msg, "\n")
+	for i, l := range lines {
+		if strings.HasPrefix(strings.ToLower(l), "signed-off-by:") &&
+			strings.Contains(l, "<"+oldEmail+">") {
+			lines[i] = fmt.Sprintf("Signed-off-by: %s <%s>", newName, newEmail)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
