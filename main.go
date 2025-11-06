@@ -19,6 +19,7 @@ func main() {
 	newName := flag.String("newName", "", "New name")
 	newEmail := flag.String("newEmail", "", "New email")
 	signCommits := flag.Bool("signCommits", false, "Sign commits")
+	signOnBranch := flag.String("signOnBranch", "resigned", "Sign on branch, be careful – this might BREAK your repo")
 	flag.Parse()
 
 	if *oldName == "" || *oldEmail == "" || *newName == "" || *newEmail == "" {
@@ -184,13 +185,13 @@ func main() {
 		newHead := newCommitMap[commits[len(commits)-1]]
 
 		fmt.Printf("Resetting branch to new head %s\n", newHead)
-		if _, err := runGit("update-ref", "refs/heads/resigned", newHead); err != nil {
+		if _, err := runGit("update-ref", fmt.Sprintf("refs/heads/%s", *signOnBranch), newHead); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to update ref: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("All commits have been re-signed and written to branch 'resigned'.")
+		fmt.Printf("All commits have been re-signed and written to branch '%s'.\n", *signOnBranch)
 		fmt.Println("You can inspect it using:")
-		fmt.Println("  git log --show-signature resigned")
+		fmt.Printf("  git log --show-signature %s\n", *signOnBranch)
 	}
 
 	fmt.Println("All commits rewritten successfully!")
