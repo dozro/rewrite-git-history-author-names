@@ -52,16 +52,17 @@ user-install: $(COMPILETARGET) $(COMPILETARGETRESIGN) $(USERINSTALLDIR)
 	@cp $(COMPILETARGETRESIGN) $(USERINSTALLDIR)
 
 # install for system
-.Phony: system-man-install
+.Phony: system-install system-man-install
+PREFIX ?= /usr/local
+
 system-man-install:
-	sudo install -D -m 644 man/git-change-name.1 /usr/share/man/man1/git-change-name.1
+	install -d $(PREFIX)/share/man/man1
+	install -d $(PREFIX)/share/man/man7
+	install -m 444 man/git-change-name.1 $(PREFIX)/share/man/man1/git-change-name.1
+	install -m 444 man/git-history-rewrite.7 $(PREFIX)/share/man/man7/git-history-rewrite.7
+	install -m 444 man/git-re-sign.1 $(PREFIX)/share/man/man1/git-re-sign.1
 
-.Phony: system-install
 system-install: $(COMPILETARGET) $(COMPILETARGETRESIGN) $(COMPILETARGETRESIGN) system-man-install
-	sudo cp $(COMPILETARGET) /usr/bin/
-	sudo cp $(COMPILETARGETRESIGN) /usr/bin/
-
-.Phony: system-install-macos
-system-install-macos: $(COMPILETARGET) $(COMPILETARGETRESIGN)
-	sudo cp $(COMPILETARGET) /usr/local/bin/
-	sudo cp $(COMPILETARGETRESIGN) /usr/local/bin/
+	install -d $(PREFIX)/bin
+	install -m 555 $(COMPILETARGET) $(PREFIX)/bin/$(COMPILEDNAME)
+	install -m 555 $(COMPILETARGETRESIGN) $(PREFIX)/bin/$(COMPILENAMERESIGN)
