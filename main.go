@@ -28,7 +28,7 @@ func main() {
 	}
 
 	// Prepare fast-export and fast-import
-	exportCmd := exec.Command("git", "fast-export", "--all", "--signed-tags=warn-strip")
+	exportCmd := exec.Command("git", "fast-export", "--full-tree", "--all", "--signed-tags=warn-strip")
 	importCmd := exec.Command("git", "fast-import", "--force")
 
 	// Pipe data between them
@@ -37,6 +37,7 @@ func main() {
 		fmt.Println("Error connecting fast-export output:", err)
 		os.Exit(1)
 	}
+	defer exportOut.Close()
 	importIn, err := importCmd.StdinPipe()
 	if err != nil {
 		fmt.Println("Error connecting fast-import input:", err)
