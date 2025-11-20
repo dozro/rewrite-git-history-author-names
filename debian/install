@@ -1,0 +1,5 @@
+dist/git-change-name usr/bin/
+dist/git-re-sign usr/bin/
+man/git-change-name.1 usr/share/man/man1/
+man/git-re-sign.1 usr/share/man/man1/
+man/git-history-rewrite.7 usr/share/man/man7/

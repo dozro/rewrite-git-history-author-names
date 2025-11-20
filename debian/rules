@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --buildsystem=golang --with=golang
+
+override_dh_auto_install:
+	dh_auto_install
+	install -m755 -D cmd/git-change-name/git-change-name $(DESTDIR)/usr/bin/git-change-name
+	install -m755 -D cmd/git-resign-commits/git-resign-commits $(DESTDIR)/usr/bin/git-resign-commits
+	install -m644 -D man/git-change-name.1 $(DESTDIR)/usr/share/man/man1/git-change-name.1
+	install -m644 -D man/git-resign-commits.1 $(DESTDIR)/usr/share/man/man1/git-resign-commits.1
+	install -m644 -D man/git-history-rewrite.7 $(DESTDIR)/usr/share/man/man7/git-history-rewrite.7

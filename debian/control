@@ -1,0 +1,14 @@
+Source: git-rewrite-history
+Section: utils
+Priority: optional
+Maintainer: Rye <debian@itsrye.dev>
+Build-Depends: debhelper (>= 12), golang-any
+Standards-Version: 4.6.2
+Homepage:  https://codeberg.org/dozrye/git-rewrite-authors-and-resign
+
+Package: git-rewrite-history
+Architecture: amd64 arm64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Rewrite author/committer metadata and resign commits
+ A fast git history rewrite tool using fast-export / fast-import
+ and optional commit resigning using git commit-tree -S.

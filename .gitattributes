@@ -1,2 +1,4 @@
 man/*.1 linguist-language=Roff linguist-documentation
 man/*.7 linguist-language=Roff linguist-documentation
+debian/control linguist-language=527438264
+debian/rules linguist-language=Makefile

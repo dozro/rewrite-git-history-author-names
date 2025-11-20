@@ -1,0 +1,5 @@
+git-rewrite-history (1.0.0-1) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Rye <debian@itsrye.dev>  Thu, 20 Nov 2025 12:00:00 +0000
