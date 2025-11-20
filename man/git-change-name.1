@@ -1,0 +1,100 @@
+.TH git-change-name 1 "2025-11-20" "change-name" "User Commands"
+.SH NAME
+git-change-name \- rewrite author, committer, and Signed-off-by metadata in a Git repository
+
+.SH SYNOPSIS
+.B git change-name
+[\fB-oldName\fR <name>]
+[\fB-oldEmail\fR <email>]
+[\fB-newName\fR <name>]
+[\fB-newEmail\fR <email>]
+[\fB-signCommits\fR]
+[\fB-signOnBranch\fR <branch>]
+
+.SH DESCRIPTION
+\fBgit change-name\fR rewrites all commit metadata in the current Git
+repository by streaming history through
+\fBgit fast-export\fR, modifying author and committer fields,
+rewriting Signed-off-by lines, and importing the transformed history
+with \fBgit fast-import\fR.
+
+It replaces any occurrence of the specified old username or email with
+new metadata while preserving commit timestamps. Commit message blocks
+are rewritten safely using Git's data-length protocol.
+
+Optionally, the tool can also re-sign each commit using
+\fBgit commit-tree -S\fR, producing a new branch containing fully
+rewritten and re-signed commits.
+
+This tool modifies every commit hash in the repository and will require
+a forced push.
+
+.SH OPTIONS
+.TP
+.BR -oldName " <name>"
+Old author/committer name to match and replace.
+
+.TP
+.BR -oldEmail " <email>"
+Old author/committer email to match and replace.
+
+.TP
+.BR -newName " <name>"
+New name to apply to authors and committers.
+
+.TP
+.BR -newEmail " <email>"
+New email to apply to authors and committers.
+
+.TP
+.BR -signCommits
+After rewriting history, re-sign each commit using Git's configured
+signing key. Disabled by default.
+
+.TP
+.BR -signOnBranch " <branch>"
+Branch on which to write the re-signed commit chain.
+Default: \fIresigned\fR.
+
+.SH EXAMPLES
+Rewrite all commits authored by Old Dev:
+
+.nf
+    git change-name \\
+        -oldName "Old Dev" \\
+        -oldEmail old@example.com \\
+        -newName "New Dev" \\
+        -newEmail new@example.com
+.fi
+
+Rewrite and re-sign commits on the branch \fBre-signed-history\fR:
+
+.nf
+    git change-name \\
+        -oldName Old \\
+        -oldEmail old@example.com \\
+        -newName New \\
+        -newEmail new@example.com \\
+        -signCommits \\
+        -signOnBranch re-signed-history
+.fi
+
+.SH WARNINGS
+This tool rewrites every commit in the repository.
+You must force-push rewritten branches.
+This will break Fork-Relations and everyone who is currently working on a copy of this repo has to force pull this repo.
+This will break current pull requests.
+This will break relationships between branches.
+
+You probably have to redo this for every branch, you want to change your name in.
+You probably want to bring your repo into a linear history for this tool to work best, and with the least amount of side-effects.
+
+ONLY DO THIS ON GIT REPOSITORIES YOU OWN AND ARE NOT MISSION CRITICAL.
+
+Signed tags may be stripped or rewritten.
+
+.SH SEE ALSO
+git-history-rewrite(7), git-fast-export(1), git-fast-import(1), git-commit-tree(1), git-filter-repo(1), git-re-sign(1)
+
+.SH AUTHOR
+Written by itsrye.dev

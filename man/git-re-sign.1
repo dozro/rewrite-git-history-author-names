@@ -1,0 +1,59 @@
+.TH git-re-sign 1 "2025-11-20" "resign-commits" "User Commands"
+.SH NAME
+git re-sign \- rebuild and re-sign all commits in a Git repository
+
+.SH SYNOPSIS
+.B git re-sign
+[\fB-signCommits\fR]
+[\fB-signOnBranch\fR <branch>]
+
+.SH DESCRIPTION
+\fBgit re-sign\fR reconstructs all commits in the current Git
+repository and re-signs them using Git's configured signing
+mechanism (GPG, SSH, or other supported signing methods).
+
+The tool walks the commit graph in topological order using
+\fBgit rev-list --reverse\fR, extracts each commit's tree,
+parent list, author/committer metadata, and message, then generates a
+new signed commit via \fBgit commit-tree -S\fR.
+
+All rewritten commits are placed onto a new branch, leaving the
+original branch untouched. This tool is typically used after rewriting
+author or committer metadata, or when converting a repository to use
+signed commits.
+
+.SH OPTIONS
+.TP
+.BR -signCommits
+Whether to sign commits. Enabled by default.
+
+.TP
+.BR -signOnBranch " <branch>"
+Branch to update to point to the newly signed commit chain.
+Default: \fIresigned\fR.
+
+.SH EXAMPLES
+Re-sign all commits using the configured signing key:
+
+.nf
+    git re-sign
+.fi
+
+Re-sign commits and write them to a custom branch:
+
+.nf
+    git re-sign -signOnBranch fully-signed
+.fi
+
+.SH WARNINGS
+This tool produces a completely new commit history and requires a
+force push.
+
+Because commits are rebuilt manually using commit-tree, any existing
+GPG/SSH signatures are replaced.
+
+.SH SEE ALSO
+git-history-rewrite(7), git-commit-tree(1), git-rev-list(1), git-log(1), git-change-name(1)
+
+.SH AUTHOR
+Written by itsrye.dev

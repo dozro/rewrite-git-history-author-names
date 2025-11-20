@@ -1,0 +1,184 @@
+.TH GIT-HISTORY-REWRITE 7 "2025-01-01" "Git History Rewrite Guide" "Miscellaneous"
+.SH NAME
+git-history-rewrite \- concepts and best practices for rewriting and re-signing Git history
+
+.SH DESCRIPTION
+Rewriting Git history is a powerful technique for modifying commits that
+already exist in a repository. It can be used to replace author or
+committer information, correct Signed-off-by lines, remove sensitive
+data, re-sign commits, or restructure the commit graph. However, it is
+a destructive operation that invalidates all existing commit hashes and
+requires force-pushing rewritten branches.
+
+This manual page describes the conceptual model of Git history
+rewriting, explains the workflow used by tools such as
+\fBgit change-name\fR and \fBgit re-sign\fR, and outlines best
+practices for performing safe, predictable history rewrites.
+
+.SH GIT OBJECT MODEL OVERVIEW
+Git stores data in four primary object types:
+
+.TP
+.B blob
+File contents.
+
+.TP
+.B tree
+Directory structure containing blobs and subtrees.
+
+.TP
+.B commit
+A snapshot pointer containing:
+.IP \[bu] 2
+Tree hash
+.IP \[bu]
+Parent commit hashes
+.IP \[bu]
+Author and committer metadata
+.IP \[bu]
+Commit message
+
+.TP
+.B tag
+Annotated tags with optional signatures.
+
+Every commit is immutable: any change to its metadata, message, or
+parents produces a new object with a different hash.
+
+.SH WHY REWRITE HISTORY?
+History rewriting is commonly performed to:
+
+.IP \[bu] 2
+Fix incorrect author or committer names or emails
+.IP \[bu]
+Change a possibly no longer correct name in a git history (for various reasons)
+.IP \[bu]
+Correct Signed-off-by lines for projects using Developer Certificate of Origin (DCO)
+.IP \[bu]
+Re-sign commits (for example, switching from GPG to SSH signing)
+.IP \[bu]
+Remove sensitive information from commit messages
+.IP \[bu]
+Import or merge foreign history cleanly
+.IP \[bu]
+Normalize metadata in multi-contributor or corporate repositories
+
+.SH METHODS OF REWRITING HISTORY
+Several approaches exist for rewriting Git history. These vary in
+granularity, safety, and performance.
+
+.SS git filter-repo
+A high-level, flexible tool used for common rewrite operations such as
+removing files, rewriting commit messages, or filtering branches.
+
+.SS git rebase --interactive
+Allows rewriting a linear sequence of commits, typically for cleaning
+up a branch before merging.
+
+.SS git fast-export / fast-import
+A streaming method that exports the entire repository as a serialized
+stream, allowing detailed transformation before re-importing it.
+
+This method is used by \fBgit change-name\fR because it allows precise
+control over author/committer fields and commit message payloads
+without constructing a new DAG manually.
+
+.SS git commit-tree
+Creates a new commit object with explicitly defined tree, parents,
+metadata, and signature. It is the foundation for tools that rewrite a
+DAG while preserving structure.
+
+This method is used by \fBgit re-sign\fR.
+
+.SH HOW COMMIT RE-SIGNING WORKS
+Re-signing commits does not alter file contents or tree hashes; instead,
+each commit is rebuilt with identical metadata except for the signature.
+
+The typical process is:
+
+.IP 1. 4
+Enumerate commits in topological order with \fBgit rev-list --reverse\fR.
+
+.IP 2. 4
+Extract each commit's tree, parents, author, committer, dates, and message.
+
+.IP 3. 4
+Use \fBgit commit-tree -S\fR to construct a new, signed commit.
+
+.IP 4. 4
+Replace parent references using a mapping of old hash → new hash.
+
+.IP 5. 4
+Write the rewritten graph to a new branch with \fBgit update-ref\fR.
+
+This produces a commit graph identical in structure but with updated
+signatures and hashes.
+
+.SH RISKS AND IMPLICATIONS
+Rewriting history is inherently disruptive:
+
+.IP \[bu] 2
+All rewrite operations produce new commits with new hashes.
+.IP \[bu]
+Force pushing is required.
+.IP \[bu]
+Collaborators must rebase or re-clone.
+.IP \[bu]
+Open pull requests will break.
+.IP \[bu]
+Tags may need to be updated manually.
+.IP \[bu]
+Signed commits and tags may be invalidated.
+
+History rewriting should be performed only when necessary and only with
+explicit coordination in multi-user repositories.
+
+.SH BEST PRACTICES
+To minimize risk and ensure reproducible results:
+
+.IP \[bu] 2
+Perform rewrites in a temporary clone or scratch directory.
+.IP \[bu]
+Do not rewrite shared branches without agreement from all contributors.
+.IP \[bu]
+Create a fresh branch for rewritten or re-signed history.
+.IP \[bu]
+Retain the original branch until the rewrite is validated.
+.IP \[bu]
+Verify rewritten commits with \fBgit log --show-signature\fR.
+.IP \[bu]
+Use \fBgit reflog expire\fR and \fBgit gc --prune=now\fR after confirming the new history.
+
+.SH EXAMPLE WORKFLOW
+A typical safe workflow for rewriting metadata and signatures:
+
+.nf
+    # 1. Rewrite authors and metadata
+    git change-name \\
+        -oldName "Old Dev" \\
+        -oldEmail old@example.com \\
+        -newName "New Dev" \\
+        -newEmail new@example.com
+
+    # 2. Re-sign the rewritten history
+    git re-sign -signOnBranch fully-signed
+
+    # 3. Inspect the new branch
+    git log --show-signature fully-signed
+
+    # 4. Clean up local reflog
+    git reflog expire --expire=now --all
+    git gc --prune=now --aggressive
+
+    # 5. Force push your new history
+    git push --force --tags origin 'refs/heads/*'
+.fi
+
+.SH SEE ALSO
+git-change-name(1), git-re-sign(1),
+git-fast-export(1), git-fast-import(1),
+git-commit-tree(1), git-filter-repo(1),
+git-rebase(1)
+
+.SH AUTHOR
+Written by You.
