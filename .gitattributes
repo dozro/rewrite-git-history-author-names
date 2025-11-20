@@ -1,2 +1,2 @@
-man/*.1 linguist-language=Roff
-man/*.7 linguist-language=Roff
+man/*.1 linguist-language=Roff linguist-documentation
+man/*.7 linguist-language=Roff linguist-documentation
