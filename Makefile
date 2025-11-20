@@ -38,8 +38,9 @@ $(COMPILETARGETRESIGN): precheck
 	@echo "compiling"
 	go build -o $(COMPILETARGETRESIGN) $(SRCRESIGN)
 
-.Phony: user-install build
+.Phony: user-install build all
 build: $(COMPILETARGET) $(COMPILETARGETRESIGN)
+all: build
 
 # creating local bin in Home dir if it doesn't exist
 $(USERINSTALLDIR):
@@ -52,17 +53,39 @@ user-install: $(COMPILETARGET) $(COMPILETARGETRESIGN) $(USERINSTALLDIR)
 	@cp $(COMPILETARGETRESIGN) $(USERINSTALLDIR)
 
 # install for system
-.Phony: system-install system-man-install
+.Phony: system-install system-man-install installdirs
 PREFIX ?= /usr/local
 
-system-man-install:
+installdirs:
 	install -d $(PREFIX)/share/man/man1
 	install -d $(PREFIX)/share/man/man7
+	install -d $(PREFIX)/bin
+
+system-man-install: installdirs
 	install -m 444 man/git-change-name.1 $(PREFIX)/share/man/man1/git-change-name.1
 	install -m 444 man/git-history-rewrite.7 $(PREFIX)/share/man/man7/git-history-rewrite.7
 	install -m 444 man/git-re-sign.1 $(PREFIX)/share/man/man1/git-re-sign.1
 
-system-install: $(COMPILETARGET) $(COMPILETARGETRESIGN) $(COMPILETARGETRESIGN) system-man-install
-	install -d $(PREFIX)/bin
+system-install: $(COMPILETARGET) $(COMPILETARGETRESIGN) $(COMPILETARGETRESIGN) system-man-install installdirs
 	install -m 555 $(COMPILETARGET) $(PREFIX)/bin/$(COMPILEDNAME)
 	install -m 555 $(COMPILETARGETRESIGN) $(PREFIX)/bin/$(COMPILENAMERESIGN)
+
+# Standard Targets for Users (from 16.6 Gnu Make)
+.Phony: normal-install install install-strip
+normal-install: system-install
+install: system-install
+install-strip:
+	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' \
+                install
+
+.Phony: uninstall uninstall-man
+uninstall-man:
+	@echo "uninstalling man pages"
+	@rm $(PREFIX)/share/man/man1/git-change-name.1
+	@rm $(PREFIX)/share/man/man7/git-history-rewrite.7
+	@rm $(PREFIX)/share/man/man1/git-re-sign.1
+
+uninstall: uninstall-man
+	@echo "uninstalling binaries"
+	@rm $(PREFIX)/bin/$(COMPILEDNAME)
+	@rm $(PREFIX)/bin/$(COMPILENAMERESIGN)
